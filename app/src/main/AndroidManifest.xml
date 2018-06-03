@@ -3,13 +3,14 @@
     package="com.plweegie.android.rpibleweather">
 
     <uses-permission android:name="com.google.android.things.permission.MANAGE_SENSOR_DRIVERS" />
+    <uses-permission android:name="com.google.android.things.permission.USE_PERIPHERAL_IO" />
     <uses-permission android:name="android.permission.BLUETOOTH" />
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
 
     <application>
         <uses-library android:name="com.google.android.things" />
 
-        <service android:name=".TemperaturePressureService"></service>
+        <service android:name=".TemperaturePressureService" />
 
         <activity android:name=".MainActivity">
             <intent-filter>
