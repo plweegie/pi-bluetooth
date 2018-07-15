@@ -228,7 +228,7 @@ class MainActivity : Activity() {
         mBluetoothGattServer.close()
     }
 
-    private fun notifyEnvironmentalParam(value: ByteArray, characteristicUUID: UUID) {
+    private fun notifyEnvironmentalParam(value: Int, characteristicUUID: UUID) {
         if (mBleDevices.isEmpty()) {
             return
         }
@@ -237,8 +237,11 @@ class MainActivity : Activity() {
             val characteristic = mBluetoothGattServer
                     .getService(SensorProfile.ENVIRONMENTAL_SENSING_SERVICE)
                     .getCharacteristic(characteristicUUID)
+            
 
-            characteristic.value = value
+            val valueFormat = if (characteristicUUID == SensorProfile.TEMPERATURE_INFO) BluetoothGattCharacteristic.FORMAT_SINT16
+                else BluetoothGattCharacteristic.FORMAT_UINT32
+            characteristic.setValue(value, valueFormat, 0)
             mBluetoothGattServer.notifyCharacteristicChanged(device, characteristic, false)
         }
     }

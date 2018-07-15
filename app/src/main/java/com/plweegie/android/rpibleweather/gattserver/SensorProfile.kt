@@ -56,18 +56,8 @@ class SensorProfile {
             return service
         }
 
-        fun getTemperature(temperature: Float): ByteArray {
-            val temperatureAsInt = (100 * temperature).roundToInt()
-            return byteArrayOf((temperatureAsInt shr 8).toByte(),
-                    temperatureAsInt.toByte())
-        }
+        fun getTemperature(temperature: Float): Int = (100 * temperature).roundToInt()
 
-        fun getPressure(pressure: Float): ByteArray {
-            val pressureAsInt = (10 * pressure).roundToInt()
-            return byteArrayOf((pressureAsInt ushr 24).toByte(),
-                    (pressureAsInt ushr 16).toByte(),
-                    (pressureAsInt ushr 8).toByte(),
-                    pressureAsInt.toByte())
-        }
+        fun getPressure(pressure: Float): Int = (1000 * pressure).roundToInt()
     }
 }
