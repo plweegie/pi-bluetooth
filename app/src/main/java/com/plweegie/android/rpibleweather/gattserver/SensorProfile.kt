@@ -27,10 +27,10 @@ class SensorProfile {
 
     companion object {
 
-        val ENVIRONMENTAL_SENSING_SERVICE = UUID.fromString("0000181a-0000-1000-8000-00805f9b34fb")
-        val TEMPERATURE_INFO = UUID.fromString("00002a6e-0000-1000-8000-00805f9b34fb")
-        val PRESSURE_INFO = UUID.fromString("00002a6d-0000-1000-8000-00805f9b34fb")
-        val CLIENT_CONFIG = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
+        val ENVIRONMENTAL_SENSING_SERVICE: UUID = UUID.fromString("0000181a-0000-1000-8000-00805f9b34fb")
+        val TEMPERATURE_INFO: UUID = UUID.fromString("00002a6e-0000-1000-8000-00805f9b34fb")
+        val PRESSURE_INFO: UUID = UUID.fromString("00002a6d-0000-1000-8000-00805f9b34fb")
+        val CLIENT_CONFIG: UUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
 
         fun createSensorService(): BluetoothGattService {
             val service = BluetoothGattService(ENVIRONMENTAL_SENSING_SERVICE,

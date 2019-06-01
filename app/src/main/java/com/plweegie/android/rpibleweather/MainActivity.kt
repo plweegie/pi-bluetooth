@@ -35,6 +35,7 @@ import android.hardware.SensorManager.DynamicSensorCallback
 import android.os.Bundle
 import android.os.ParcelUuid
 import android.util.Log
+import androidx.work.*
 import com.plweegie.android.rpibleweather.gattserver.SensorProfile
 import java.util.*
 
@@ -47,6 +48,8 @@ class MainActivity : Activity() {
     private lateinit var mAdvertiser: BluetoothLeAdvertiser
 
     private val mBleDevices: MutableSet<BluetoothDevice?> = mutableSetOf()
+    private var temperatureEventCount: Long = 0L
+    private var pressureEventCount: Long = 0L
 
     private val mDynamicSensorCallback = object : DynamicSensorCallback() {
         override fun onDynamicSensorConnected(sensor: Sensor) {
@@ -144,6 +147,10 @@ class MainActivity : Activity() {
             }
         }
     }
+
+    private val workConstraints = Constraints.Builder()
+            .setRequiredNetworkType(NetworkType.CONNECTED)
+            .build()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -246,11 +253,33 @@ class MainActivity : Activity() {
         }
     }
 
+    private fun enqueueTemperatureSyncRequest(temperature: Float) {
+        val request = OneTimeWorkRequestBuilder<TemperatureSyncWorker>()
+                .setConstraints(workConstraints)
+                .setInputData(workDataOf(TemperatureSyncWorker.TEMPERATURE_DATA_ID to temperature))
+                .build()
+        WorkManager.getInstance().enqueue(request)
+    }
+
+    private fun enqueuePressureSyncRequest(pressure: Float) {
+        val request = OneTimeWorkRequestBuilder<PressureSyncWorker>()
+                .setConstraints(workConstraints)
+                .setInputData(workDataOf(PressureSyncWorker.PRESSURE_DATA_ID to pressure))
+                .build()
+        WorkManager.getInstance().enqueue(request)
+    }
 
     private inner class TemperatureEventListener : SensorEventListener {
         override fun onSensorChanged(event: SensorEvent) {
+
+            if ((temperatureEventCount % 18000).toInt() == 0) {
+                temperatureEventCount = 0L
+                enqueueTemperatureSyncRequest(event.values[0])
+            }
+
             Log.i(TAG, "Temperature changed: " + event.values[0])
             notifyEnvironmentalParam(SensorProfile.getTemperature(event.values[0]), SensorProfile.TEMPERATURE_INFO)
+            temperatureEventCount++
         }
 
         override fun onAccuracyChanged(sensor: Sensor, accuracy: Int) {
@@ -260,8 +289,14 @@ class MainActivity : Activity() {
 
     private inner class PressureEventListener : SensorEventListener {
         override fun onSensorChanged(event: SensorEvent) {
+            if ((pressureEventCount % 36000).toInt() == 0) {
+                pressureEventCount = 0L
+                enqueuePressureSyncRequest(event.values[0])
+            }
+
             Log.i(TAG, "Pressure changed: " + event.values[0])
             notifyEnvironmentalParam(SensorProfile.getPressure(event.values[0]), SensorProfile.PRESSURE_INFO)
+            pressureEventCount++
         }
 
         override fun onAccuracyChanged(sensor: Sensor, accuracy: Int) {
