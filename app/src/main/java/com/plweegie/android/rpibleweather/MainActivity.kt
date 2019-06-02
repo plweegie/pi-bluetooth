@@ -17,36 +17,28 @@ limitations under the License.
 package com.plweegie.android.rpibleweather
 
 import android.app.Activity
-import android.bluetooth.*
-import android.bluetooth.le.AdvertiseCallback
-import android.bluetooth.le.AdvertiseData
-import android.bluetooth.le.AdvertiseSettings
-import android.bluetooth.le.BluetoothLeAdvertiser
-import android.content.BroadcastReceiver
-import android.content.Context
 import android.content.Intent
-import android.content.IntentFilter
-import android.content.pm.PackageManager
 import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import android.hardware.SensorManager.DynamicSensorCallback
 import android.os.Bundle
-import android.os.ParcelUuid
 import android.util.Log
-import com.plweegie.android.rpibleweather.gattserver.SensorProfile
-import java.util.*
+import org.eclipse.paho.client.mqttv3.*
 
-private val TAG = MainActivity::class.java.simpleName
 
-class MainActivity : Activity() {
+class MainActivity : Activity(), MqttCallbackExtended, IMqttActionListener {
+
+    companion object {
+        private const val TEMP_SUBSCRIPTION_TOPIC = "sensor/temp"
+        private const val PRESSURE_SUBSCRIPTION_TOPIC = "sensor/press"
+    }
+
+    private val TAG = MainActivity::class.java.simpleName
+
     private lateinit var mSensorManager: SensorManager
-    private lateinit var mBluetoothManager: BluetoothManager
-    private lateinit var mBluetoothGattServer: BluetoothGattServer
-    private lateinit var mAdvertiser: BluetoothLeAdvertiser
-
-    private val mBleDevices: MutableSet<BluetoothDevice?> = mutableSetOf()
+    private lateinit var mqttHelper: MqttHelper
 
     private val mDynamicSensorCallback = object : DynamicSensorCallback() {
         override fun onDynamicSensorConnected(sensor: Sensor) {
@@ -67,117 +59,24 @@ class MainActivity : Activity() {
     private lateinit var mTemperatureEventListener: TemperatureEventListener
     private lateinit var mPressureEventListener: PressureEventListener
 
-    private val mAdvertiseCallback = object : AdvertiseCallback() {
-        override fun onStartSuccess(settingsInEffect: AdvertiseSettings?) {
-            Log.i(TAG, "LE Advertise Started.")
-        }
-
-        override fun onStartFailure(errorCode: Int) {
-            Log.w(TAG, "LE Advertise Failed: "+errorCode)
-        }
-    }
-
-    private val mGattServerCallback = object : BluetoothGattServerCallback() {
-        override fun onConnectionStateChange(device: BluetoothDevice?, status: Int, newState: Int) {
-            when (newState) {
-                BluetoothProfile.STATE_CONNECTED -> {
-                    Log.i(TAG, "BluetoothDevice CONNECTED: " + device)
-                    mBleDevices.add(device)
-                }
-                BluetoothProfile.STATE_DISCONNECTED -> mBleDevices.remove(device)
-            }
-        }
-
-        override fun onCharacteristicReadRequest(device: BluetoothDevice?, requestId: Int, offset: Int,
-                                                 characteristic: BluetoothGattCharacteristic?) {
-
-            when (characteristic?.uuid) {
-                SensorProfile.TEMPERATURE_INFO, SensorProfile.PRESSURE_INFO -> {
-                    if (characteristic != null) {
-                        mBluetoothGattServer.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS,
-                                0, characteristic.value)
-                    }
-                }
-                else -> {
-                    mBluetoothGattServer.sendResponse(device, requestId, BluetoothGatt.GATT_FAILURE,
-                            0, null)
-                }
-            }
-
-        }
-
-        override fun onDescriptorWriteRequest(device: BluetoothDevice?, requestId: Int, descriptor: BluetoothGattDescriptor?, preparedWrite: Boolean,
-                                              responseNeeded: Boolean, offset: Int, value: ByteArray?) {
-            if (descriptor?.uuid == SensorProfile.CLIENT_CONFIG) {
-                if (BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE contentEquals (value as ByteArray) ) {
-                    mBleDevices.add(device)
-                } else if (BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE contentEquals value) {
-                    mBleDevices.remove(device)
-                }
-
-                if (responseNeeded) {
-                    mBluetoothGattServer.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS,
-                            0, null)
-                }
-            } else {
-                if (responseNeeded) {
-                    mBluetoothGattServer.sendResponse(device, requestId, BluetoothGatt.GATT_FAILURE,
-                            0, null)
-                }
-            }
-        }
-    }
-
-    private val mBluetoothReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context?, intent: Intent?) {
-            val state = intent?.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.STATE_OFF)
-
-            when (state) {
-                BluetoothAdapter.STATE_ON -> {
-                    startAdvertising()
-                    startServer()
-                }
-                BluetoothAdapter.STATE_OFF -> {
-                    stopAdvertising()
-                    stopServer()
-                }
-            }
-        }
-    }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         startTemperaturePressureRequest()
-
-        mBluetoothManager = getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
-        val bluetoothAdapter = mBluetoothManager.adapter
-
-        if (bluetoothAdapter == null || !packageManager.hasSystemFeature(PackageManager.FEATURE_BLUETOOTH_LE)) {
-            finish()
-        }
-
-        val intentFilter = IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED)
-        registerReceiver(mBluetoothReceiver, intentFilter)
-
-        if (!bluetoothAdapter.isEnabled) {
-            bluetoothAdapter.enable()
-        } else {
-            Log.d(TAG, "Bluetooth enabled...starting services")
-            startAdvertising()
-            startServer()
-        }
+        startMqtt()
     }
 
     override fun onDestroy() {
         super.onDestroy()
+        mqttHelper.disconnect()
         stopTemperaturePressureRequest()
+    }
 
-        if (mBluetoothManager.adapter.isEnabled) {
-            stopServer()
-            stopAdvertising()
+    private fun startMqtt() {
+        mqttHelper = MqttHelper(applicationContext).apply {
+            setMqttCallback(this@MainActivity)
+            setPublishListener(this@MainActivity)
+            connect()
         }
-
-        unregisterReceiver(mBluetoothReceiver)
     }
 
     private fun startTemperaturePressureRequest() {
@@ -195,62 +94,43 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun startAdvertising() {
-        val adapter = mBluetoothManager.adapter
-        mAdvertiser = adapter.bluetoothLeAdvertiser
-
-        val settings = AdvertiseSettings.Builder()
-                .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_BALANCED)
-                .setConnectable(true)
-                .setTimeout(0)
-                .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_MEDIUM)
-                .build()
-
-        val data = AdvertiseData.Builder()
-                .setIncludeDeviceName(true)
-                .setIncludeTxPowerLevel(false)
-                .addServiceUuid(ParcelUuid(SensorProfile.ENVIRONMENTAL_SENSING_SERVICE))
-                .build()
-
-        mAdvertiser.startAdvertising(settings, data, mAdvertiseCallback)
+    private fun notifyTemperature(value: Float) {
+        mqttHelper.publish(TEMP_SUBSCRIPTION_TOPIC, value.toString(), this)
     }
 
-    private fun stopAdvertising() {
-        mAdvertiser.stopAdvertising(mAdvertiseCallback)
+    private fun notifyPressure(value: Float) {
+        mqttHelper.publish(PRESSURE_SUBSCRIPTION_TOPIC, value.toString(), this)
     }
 
-    private fun startServer() {
-        mBluetoothGattServer = mBluetoothManager.openGattServer(this, mGattServerCallback)
-        mBluetoothGattServer.addService(SensorProfile.createSensorService())
+    override fun connectComplete(reconnect: Boolean, serverURI: String?) {
+        val toast = if (reconnect) "Reconnected" else "Connected"
+        Log.d("MQTT", "$toast to $serverURI")
     }
 
-    private fun stopServer() {
-        mBluetoothGattServer.close()
+    override fun messageArrived(topic: String?, message: MqttMessage?) {
+
     }
 
-    private fun notifyEnvironmentalParam(value: Int, characteristicUUID: UUID) {
-        if (mBleDevices.isEmpty()) {
-            return
-        }
-
-        for (device in mBleDevices) {
-            val characteristic = mBluetoothGattServer
-                    .getService(SensorProfile.ENVIRONMENTAL_SENSING_SERVICE)
-                    .getCharacteristic(characteristicUUID)
-            
-
-            val valueFormat = if (characteristicUUID == SensorProfile.TEMPERATURE_INFO) BluetoothGattCharacteristic.FORMAT_SINT16
-                else BluetoothGattCharacteristic.FORMAT_UINT32
-            characteristic.setValue(value, valueFormat, 0)
-            mBluetoothGattServer.notifyCharacteristicChanged(device, characteristic, false)
-        }
+    override fun connectionLost(cause: Throwable?) {
+        Log.d("MQTT", "Connection lost")
     }
 
+    override fun deliveryComplete(token: IMqttDeliveryToken?) {
+        Log.d("MQTT", "Delivery complete: ${token?.message}")
+    }
+
+    override fun onSuccess(asyncActionToken: IMqttToken?) {
+        Log.d("MQTT", "Publish successful")
+    }
+
+    override fun onFailure(asyncActionToken: IMqttToken?, exception: Throwable?) {
+        Log.d("MQTT", "Publish failed")
+    }
 
     private inner class TemperatureEventListener : SensorEventListener {
         override fun onSensorChanged(event: SensorEvent) {
             Log.i(TAG, "Temperature changed: " + event.values[0])
-            notifyEnvironmentalParam(SensorProfile.getTemperature(event.values[0]), SensorProfile.TEMPERATURE_INFO)
+            notifyTemperature(event.values[0])
         }
 
         override fun onAccuracyChanged(sensor: Sensor, accuracy: Int) {
@@ -261,7 +141,7 @@ class MainActivity : Activity() {
     private inner class PressureEventListener : SensorEventListener {
         override fun onSensorChanged(event: SensorEvent) {
             Log.i(TAG, "Pressure changed: " + event.values[0])
-            notifyEnvironmentalParam(SensorProfile.getPressure(event.values[0]), SensorProfile.PRESSURE_INFO)
+            notifyPressure(event.values[0])
         }
 
         override fun onAccuracyChanged(sensor: Sensor, accuracy: Int) {

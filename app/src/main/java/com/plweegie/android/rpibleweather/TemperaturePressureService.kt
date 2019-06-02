@@ -25,7 +25,6 @@ import com.google.android.things.contrib.driver.bmx280.Bmx280SensorDriver
 
 import java.io.IOException
 
-private val TAG = TemperaturePressureService::class.java.simpleName
 
 /**
  * To use this service, start it from your component (like an activity):
@@ -34,6 +33,9 @@ private val TAG = TemperaturePressureService::class.java.simpleName
  * }</pre>
  */
 class TemperaturePressureService : Service() {
+
+    private val TAG = TemperaturePressureService::class.java.simpleName
+
     private lateinit var mTemperatureSensorDriver: Bmx280SensorDriver
 
     override fun onCreate() {
