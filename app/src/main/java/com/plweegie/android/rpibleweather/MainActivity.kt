@@ -48,6 +48,10 @@ class MainActivity : Activity() {
     private var mBluetoothGattServer: BluetoothGattServer? = null
     private val mBleDevices: MutableSet<BluetoothDevice> = mutableSetOf()
 
+    private companion object {
+        const val EVENTS_PER_SECOND = 20
+    }
+
     private val mDynamicSensorCallback = object : DynamicSensorCallback() {
         override fun onDynamicSensorConnected(sensor: Sensor) {
             when (sensor.type) {
@@ -267,10 +271,17 @@ class MainActivity : Activity() {
     }
 
     private inner class TemperatureEventListener : SensorEventListener {
-        override fun onSensorChanged(event: SensorEvent) {
+        private val temperatureEvents: MutableList<Int> = mutableListOf()
 
-            Log.i(TAG, "Temperature changed: " + event.values[0])
-            notifyEnvironmentalParam(SensorProfile.getTemperature(event.values[0]), SensorProfile.TEMPERATURE_INFO)
+        override fun onSensorChanged(event: SensorEvent) {
+            temperatureEvents.add(SensorProfile.getTemperature(event.values[0]))
+
+            if (temperatureEvents.size == EVENTS_PER_SECOND) {
+                val averageTemperature = temperatureEvents.average().toInt()
+                notifyEnvironmentalParam(averageTemperature, SensorProfile.TEMPERATURE_INFO)
+                Log.i(TAG, "Temperature changed: $averageTemperature")
+                temperatureEvents.clear()
+            }
         }
 
         override fun onAccuracyChanged(sensor: Sensor, accuracy: Int) {
@@ -279,9 +290,17 @@ class MainActivity : Activity() {
     }
 
     private inner class PressureEventListener : SensorEventListener {
+        private val pressureEvents: MutableList<Int> = mutableListOf()
+
         override fun onSensorChanged(event: SensorEvent) {
-            Log.i(TAG, "Pressure changed: " + event.values[0])
-            notifyEnvironmentalParam(SensorProfile.getPressure(event.values[0]), SensorProfile.PRESSURE_INFO)
+            pressureEvents.add(SensorProfile.getPressure(event.values[0]))
+
+            if (pressureEvents.size == EVENTS_PER_SECOND) {
+                val averagePressure = pressureEvents.average().toInt()
+                notifyEnvironmentalParam(averagePressure, SensorProfile.PRESSURE_INFO)
+                Log.i(TAG, "Pressure changed: $averagePressure")
+                pressureEvents.clear()
+            }
         }
 
         override fun onAccuracyChanged(sensor: Sensor, accuracy: Int) {
