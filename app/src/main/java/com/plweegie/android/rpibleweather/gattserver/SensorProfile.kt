@@ -23,41 +23,38 @@ import java.util.UUID
 import kotlin.math.roundToInt
 
 
-class SensorProfile {
+object SensorProfile {
 
-    companion object {
+    val ENVIRONMENTAL_SENSING_SERVICE: UUID = UUID.fromString("0000181a-0000-1000-8000-00805f9b34fb")
+    val TEMPERATURE_INFO: UUID = UUID.fromString("00002a6e-0000-1000-8000-00805f9b34fb")
+    val PRESSURE_INFO: UUID = UUID.fromString("00002a6d-0000-1000-8000-00805f9b34fb")
+    val CLIENT_CONFIG: UUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
 
-        val ENVIRONMENTAL_SENSING_SERVICE: UUID = UUID.fromString("0000181a-0000-1000-8000-00805f9b34fb")
-        val TEMPERATURE_INFO: UUID = UUID.fromString("00002a6e-0000-1000-8000-00805f9b34fb")
-        val PRESSURE_INFO: UUID = UUID.fromString("00002a6d-0000-1000-8000-00805f9b34fb")
-        val CLIENT_CONFIG: UUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
+    fun createSensorService(): BluetoothGattService {
+        val service = BluetoothGattService(ENVIRONMENTAL_SENSING_SERVICE,
+                BluetoothGattService.SERVICE_TYPE_PRIMARY)
 
-        fun createSensorService(): BluetoothGattService {
-            val service = BluetoothGattService(ENVIRONMENTAL_SENSING_SERVICE,
-                    BluetoothGattService.SERVICE_TYPE_PRIMARY)
+        val temperatureInfo = BluetoothGattCharacteristic(TEMPERATURE_INFO,
+                BluetoothGattCharacteristic.PROPERTY_READ or BluetoothGattCharacteristic.PROPERTY_NOTIFY,
+                BluetoothGattCharacteristic.PERMISSION_READ)
+        val pressureInfo = BluetoothGattCharacteristic(PRESSURE_INFO,
+                BluetoothGattCharacteristic.PROPERTY_READ or BluetoothGattCharacteristic.PROPERTY_NOTIFY,
+                BluetoothGattCharacteristic.PERMISSION_READ)
 
-            val temperatureInfo = BluetoothGattCharacteristic(TEMPERATURE_INFO,
-                    BluetoothGattCharacteristic.PROPERTY_READ or BluetoothGattCharacteristic.PROPERTY_NOTIFY,
-                    BluetoothGattCharacteristic.PERMISSION_READ)
-            val pressureInfo = BluetoothGattCharacteristic(PRESSURE_INFO,
-                    BluetoothGattCharacteristic.PROPERTY_READ or BluetoothGattCharacteristic.PROPERTY_NOTIFY,
-                    BluetoothGattCharacteristic.PERMISSION_READ)
+        val configDescriptor = BluetoothGattDescriptor(CLIENT_CONFIG,
+                BluetoothGattDescriptor.PERMISSION_READ or BluetoothGattDescriptor.PERMISSION_WRITE)
 
-            val configDescriptor = BluetoothGattDescriptor(CLIENT_CONFIG,
-                    BluetoothGattDescriptor.PERMISSION_READ or BluetoothGattDescriptor.PERMISSION_WRITE)
+        temperatureInfo.addDescriptor(configDescriptor)
+        pressureInfo.addDescriptor(configDescriptor)
 
-            temperatureInfo.addDescriptor(configDescriptor)
-            pressureInfo.addDescriptor(configDescriptor)
-
-            service.apply {
-                addCharacteristic(temperatureInfo)
-                addCharacteristic(pressureInfo)
-            }
-            return service
+        service.apply {
+            addCharacteristic(temperatureInfo)
+            addCharacteristic(pressureInfo)
         }
-
-        fun getTemperature(temperature: Float): Int = (100 * temperature).roundToInt()
-
-        fun getPressure(pressure: Float): Int = (1000 * pressure).roundToInt()
+        return service
     }
+
+    fun getTemperature(temperature: Float): Int = (100 * temperature).roundToInt()
+
+    fun getPressure(pressure: Float): Int = (1000 * pressure).roundToInt()
 }
