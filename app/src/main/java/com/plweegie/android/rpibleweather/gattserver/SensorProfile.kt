@@ -25,11 +25,17 @@ import kotlin.math.roundToInt
 
 object SensorProfile {
 
+    @JvmField
     val ENVIRONMENTAL_SENSING_SERVICE: UUID = UUID.fromString("0000181a-0000-1000-8000-00805f9b34fb")
+    @JvmField
     val TEMPERATURE_INFO: UUID = UUID.fromString("00002a6e-0000-1000-8000-00805f9b34fb")
+    @JvmField
     val PRESSURE_INFO: UUID = UUID.fromString("00002a6d-0000-1000-8000-00805f9b34fb")
+
+    @JvmField
     val CLIENT_CONFIG: UUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
 
+    @JvmStatic
     fun createSensorService(): BluetoothGattService {
         val service = BluetoothGattService(ENVIRONMENTAL_SENSING_SERVICE,
                 BluetoothGattService.SERVICE_TYPE_PRIMARY)
@@ -54,7 +60,9 @@ object SensorProfile {
         return service
     }
 
+    @JvmStatic
     fun getTemperature(temperature: Float): Int = (100 * temperature).roundToInt()
 
+    @JvmStatic
     fun getPressure(pressure: Float): Int = (1000 * pressure).roundToInt()
 }
