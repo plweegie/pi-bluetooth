@@ -257,7 +257,7 @@ public class GattServerActivity extends Activity {
      * Send a time service notification to any devices that are subscribed
      * to the characteristic.
      */
-    private void notifyEnvironmentalParam(int value, UUID characteristicUUID) {
+    private void notifyEnvironmentalParam(int value) {
         if (mRegisteredDevices.isEmpty()) {
             Log.i(TAG, "No subscribers registered");
             return;
@@ -267,10 +267,9 @@ public class GattServerActivity extends Activity {
         for (BluetoothDevice device : mRegisteredDevices) {
             BluetoothGattCharacteristic characteristic = mBluetoothGattServer
                     .getService(SensorProfile.ENVIRONMENTAL_SENSING_SERVICE)
-                    .getCharacteristic(characteristicUUID);
+                    .getCharacteristic(SensorProfile.TEMPERATURE_INFO);
 
-            int valueFormat = (characteristicUUID.equals(SensorProfile.TEMPERATURE_INFO)) ? BluetoothGattCharacteristic.FORMAT_SINT16
-                    : BluetoothGattCharacteristic.FORMAT_UINT32;
+            int valueFormat = BluetoothGattCharacteristic.FORMAT_SINT16;
             characteristic.setValue(value, valueFormat, 0);
             mBluetoothGattServer.notifyCharacteristicChanged(device, characteristic, false);
         }
@@ -332,7 +331,7 @@ public class GattServerActivity extends Activity {
         @Override
         public void onSensorChanged(SensorEvent sensorEvent) {
             Log.d("GATT", "sensor changed");
-            notifyEnvironmentalParam(SensorProfile.getTemperature(sensorEvent.values[0]), SensorProfile.TEMPERATURE_INFO);
+            notifyEnvironmentalParam(SensorProfile.getTemperature(sensorEvent.values[0]));
         }
 
         @Override
@@ -344,7 +343,6 @@ public class GattServerActivity extends Activity {
     private class PressureEventListener implements SensorEventListener {
         @Override
         public void onSensorChanged(SensorEvent sensorEvent) {
-            notifyEnvironmentalParam(SensorProfile.getPressure(sensorEvent.values[0]), SensorProfile.PRESSURE_INFO);
         }
 
         @Override
